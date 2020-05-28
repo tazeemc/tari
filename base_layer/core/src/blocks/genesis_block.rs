@@ -124,6 +124,8 @@ pub fn get_rincewind_genesis_block_raw() -> Block {
                 pow_algo: PowAlgorithm::Blake,
                 pow_data: vec![],
             },
+            #[cfg(feature = "monero_merge_mining")]
+            aux_pow_header: Default::default(),
         },
         body,
     }

@@ -43,6 +43,8 @@ message BlockHeader {
     uint64 nonce = 10;
     // Proof of work metadata
     ProofOfWork pow = 11;
+    // Merged Mining Header
+    bytes AuxPowHeader = 12;
 }
 
 // A Tari block. Blocks are linked together into a blockchain.

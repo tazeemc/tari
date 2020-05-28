@@ -25,12 +25,26 @@ use crate::{
     proof_of_work::{monero_rx::MergeMineError::HashingError, Difficulty},
     U256,
 };
+use bincode::deserialize;
+use bitflags::_core::ptr::hash;
+use blake2::Digest;
+use bytes::Buf;
 use derive_error::Error;
-use monero::blockdata::{block::BlockHeader as MoneroBlockHeader, Transaction as MoneroTransaction};
+use monero::{
+    blockdata::{
+        block::BlockHeader as MoneroBlockHeader,
+        transaction::{ExtraField, SubField},
+        Transaction as MoneroTransaction,
+    },
+    consensus::encode::VarInt,
+    cryptonote::hash::*,
+    Transaction,
+};
 #[cfg(feature = "monero_merge_mining")]
 use randomx_rs::{RandomXCache, RandomXDataset, RandomXError, RandomXFlag, RandomXVM};
 use serde::{Deserialize, Serialize};
-use tari_mmr::MerkleProof;
+use std::{hash::Hasher, str};
+use tari_mmr::{common::node_index, ArrayLike, MerkleMountainRange, MerkleProof, MerkleProofError};
 
 const MAX_TARGET: U256 = U256::MAX;
 
@@ -38,8 +52,12 @@ const MAX_TARGET: U256 = U256::MAX;
 enum MergeMineError {
     // Error deserializing Monero data
     DeserializeError,
+    // Error serializing Monero data
+    SerializeError,
     // Hashing of Monero data failed
     HashingError,
+    // Validation Failure
+    ValidationError,
     // RandomX Failure
     #[cfg(feature = "monero_merge_mining")]
     RandomXError(RandomXError),
@@ -74,17 +92,17 @@ impl MoneroData {
 pub fn monero_difficulty(header: &BlockHeader) -> Difficulty {
     match monero_difficulty_calculation(header) {
         Ok(v) => v,
-        Err(_) => 1.into(), // todo this needs to change to 0 when merge mine is implemented
+        Err(_) => 0.into(), // todo this needs to change to 0 when merge mine is implemented
     }
 }
 
 /// Internal function to calculate the difficulty attained for the given block Deserialized the Monero header from the
 /// provided header
 fn monero_difficulty_calculation(header: &BlockHeader) -> Result<Difficulty, MergeMineError> {
-    let monero = MoneroData::new(header)?;
-    verify_header(&header, &monero)?;
     #[cfg(feature = "monero_merge_mining")]
     {
+        let monero = MoneroData::new(header)?;
+        verify_header(&header, &monero)?;
         let flags = RandomXFlag::get_recommended_flags();
         let key = monero.key.clone();
         let input = create_input_blob(&monero)?;
@@ -103,16 +121,39 @@ fn monero_difficulty_calculation(header: &BlockHeader) -> Result<Difficulty, Mer
     }
 }
 
-fn create_input_blob(_data: &MoneroData) -> Result<String, MergeMineError> {
-    // Todo deserialize monero data to create string for  randomX vm
-    // Returning an error here so that difficulty can return 0 as this is not yet implemented.
-    Err(MergeMineError::HashingError)
+fn create_input_blob(data: &MoneroData) -> Result<String, MergeMineError> {
+    let serialized_header = bincode::serialize(&data.header);
+    if !serialized_header.is_ok() {
+        return Err(MergeMineError::SerializeError);
+    }
+    let serialized_root_hash = bincode::serialize(&data.transaction_root);
+    if !serialized_root_hash.is_ok() {
+        return Err(MergeMineError::SerializeError);
+    }
+    let serialized_transaction_count = bincode::serialize(&data.count);
+    if !serialized_transaction_count.is_ok() {
+        return Err(MergeMineError::SerializeError);
+    }
+
+    let mut pre_hash_blob = serialized_header.unwrap();
+    pre_hash_blob.append(&mut serialized_root_hash.unwrap());
+    pre_hash_blob.append(&mut serialized_transaction_count.unwrap());
+    let hash_blob = Hash::hash(pre_hash_blob.as_slice());
+    let hash_vec = hash_blob.0.clone().to_vec();
+    let hash_result = str::from_utf8(hash_vec.as_slice());
+    if !hash_result.is_ok() {
+        return Err(MergeMineError::HashingError);
+    }
+    Ok(hash_result.unwrap().into())
 }
 
-fn verify_header(_header: &BlockHeader, _monero_data: &MoneroData) -> Result<(), MergeMineError> {
-    // todo
-    // verify that our header is in coinbase
-    // todo
-    // verify that coinbase is in root.
+fn verify_header(header: &BlockHeader, monero_data: &MoneroData) -> Result<(), MergeMineError> {
+    if !(monero_data.coinbase_tx.prefix.extra.0.contains(&SubField::MergeMining(
+        VarInt(header.height),
+        Hash::hash(header.kernel_mr.as_slice()),
+    ))) {
+        return Err(MergeMineError::ValidationError);
+    }
+
     Ok(())
 }

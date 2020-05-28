@@ -46,6 +46,8 @@ use crate::{
 use chrono::{DateTime, Utc};
 use derive_error::Error;
 use digest::Digest;
+#[cfg(feature = "monero_merge_mining")]
+use monero::blockdata::{block::BlockHeader as MoneroBlockHeader, Transaction as MoneroTransaction};
 use serde::{
     de::{self, Visitor},
     Deserialize,
@@ -108,6 +110,8 @@ pub struct BlockHeader {
     pub nonce: u64,
     /// Proof of work summary
     pub pow: ProofOfWork,
+    #[cfg(feature = "monero_merge_mining")]
+    pub aux_pow_header: MoneroBlockHeader,
 }
 
 impl BlockHeader {
@@ -124,6 +128,8 @@ impl BlockHeader {
             total_kernel_offset: BlindingFactor::default(),
             nonce: 0,
             pow: ProofOfWork::default(),
+            #[cfg(feature = "monero_merge_mining")]
+            aux_pow_header: Default::default(),
         }
     }
 
@@ -146,6 +152,8 @@ impl BlockHeader {
             total_kernel_offset: BlindingFactor::default(),
             nonce: 0,
             pow,
+            #[cfg(feature = "monero_merge_mining")]
+            aux_pow_header: Default::default(),
         }
     }
 
@@ -222,6 +230,8 @@ impl From<NewBlockHeaderTemplate> for BlockHeader {
             total_kernel_offset: header_template.total_kernel_offset,
             nonce: 0,
             pow: header_template.pow,
+            #[cfg(feature = "monero_merge_mining")]
+            aux_pow_header: Default::default(),
         }
     }
 }

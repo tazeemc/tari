@@ -103,6 +103,8 @@ impl TryFrom<proto::BlockHeader> for BlockHeader {
             total_kernel_offset,
             nonce: header.nonce,
             pow,
+            #[cfg(feature = "monero_merge_mining")]
+            aux_pow_header: Default::default(),
         })
     }
 }
@@ -120,6 +122,8 @@ impl From<BlockHeader> for proto::BlockHeader {
             total_kernel_offset: header.total_kernel_offset.to_vec(),
             nonce: header.nonce,
             pow: Some(proto::ProofOfWork::from(header.pow)),
+            #[cfg(feature = "monero_merge_mining")]
+            aux_pow_header: Default::default(),
         }
     }
 }
