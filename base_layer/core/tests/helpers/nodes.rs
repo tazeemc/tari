@@ -243,7 +243,7 @@ impl BaseNodeBuilder {
 pub fn wait_until_online(runtime: &mut Runtime, nodes: &[&NodeInterfaces]) {
     for node in nodes {
         runtime
-            .block_on(node.comms.connectivity().wait_for_connectivity(Duration::from_secs(10)))
+            .block_on(node.comms.connectivity().wait_for_connectivity(Duration::from_secs(30)))
             .map_err(|err| format!("Node '{}' failed to go online {:?}", node.node_identity.node_id(), err))
             .unwrap();
     }
@@ -357,7 +357,7 @@ pub fn create_network_with_3_base_nodes_with_config(
 
     let (alice_node, consensus_manager) = BaseNodeBuilder::new(network)
         .with_node_identity(alice_node_identity.clone())
-        .with_peers(vec![bob_node_identity.clone(), carol_node_identity.clone()])
+        .with_peers(vec![bob_node_identity.clone()])
         .with_base_node_service_config(base_node_service_config)
         .with_mmr_cache_config(mmr_cache_config)
         .with_mempool_service_config(mempool_service_config)
@@ -366,7 +366,7 @@ pub fn create_network_with_3_base_nodes_with_config(
         .start(runtime, data_path);
     let (bob_node, consensus_manager) = BaseNodeBuilder::new(network)
         .with_node_identity(bob_node_identity.clone())
-        .with_peers(vec![carol_node_identity.clone(), alice_node_identity.clone()])
+        .with_peers(vec![carol_node_identity.clone()])
         .with_base_node_service_config(base_node_service_config)
         .with_mmr_cache_config(mmr_cache_config)
         .with_mempool_service_config(mempool_service_config)
@@ -375,7 +375,7 @@ pub fn create_network_with_3_base_nodes_with_config(
         .start(runtime, data_path);
     let (carol_node, consensus_manager) = BaseNodeBuilder::new(network)
         .with_node_identity(carol_node_identity.clone())
-        .with_peers(vec![alice_node_identity.clone(), bob_node_identity.clone()])
+        .with_peers(vec![alice_node_identity.clone()])
         .with_base_node_service_config(base_node_service_config)
         .with_mmr_cache_config(mmr_cache_config)
         .with_mempool_service_config(mempool_service_config)

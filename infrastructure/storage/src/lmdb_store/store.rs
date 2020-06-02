@@ -128,9 +128,7 @@ impl LMDBBuilder {
             let mut builder = EnvBuilder::new()?;
             builder.set_mapsize(self.db_size_mb * 1024 * 1024)?;
             builder.set_maxdbs(max_dbs)?;
-            // Using open::Flags::NOTLS does not compile!?! NOTLS=0x200000
-            let flags = open::Flags::from_bits(0x200_000).expect("LMDB open::Flag is correct");
-            builder.open(&path, flags, 0o600)?
+            builder.open(&path, open::NOTLS, 0o600)?
         };
         let env = Arc::new(env);
 
@@ -383,7 +381,8 @@ impl LMDBDatabase {
             let buf = LMDBWriteTransaction::convert_value(value, 512)?;
             accessor.put(&*self.db, key, &buf, put::Flags::empty())?;
         }
-        tx.commit().map_err(LMDBError::from)
+        tx.commit()?;
+        Ok(())
     }
 
     /// Get a value from the database. This is an atomic operation. A read transaction is created, the value

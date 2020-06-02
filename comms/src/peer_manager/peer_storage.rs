@@ -618,9 +618,16 @@ mod test {
     use crate::{
         net_address::MultiaddressesWithStats,
         peer_manager::{peer::PeerFlags, PeerFeatures},
+        test_utils::node_identity::build_node_identity,
     };
+    use std::{sync::Arc, thread};
     use tari_crypto::{keys::PublicKey, ristretto::RistrettoPublicKey};
-    use tari_storage::HashmapDatabase;
+    use tari_storage::{
+        lmdb_store::{LMDBBuilder, LMDBStore},
+        HashmapDatabase,
+        LMDBWrapper,
+    };
+    use tokio::sync::RwLock;
 
     #[test]
     fn test_restore() {
@@ -932,5 +939,72 @@ mod test {
             .unwrap();
         assert!(client_region_stats.distance < NodeDistance::max_distance());
         assert_eq!(client_region_stats.total, 4);
+    }
+
+    #[test]
+    fn lmdb() {
+        std::fs::create_dir_all("/tmp/tmptmp").unwrap();
+        let store = LMDBBuilder::new()
+            .set_path("/tmp/tmptmp")
+            .add_database("tmptmp", lmdb_zero::db::CREATE)
+            .add_database("tmptmp2", lmdb_zero::db::CREATE)
+            .build()
+            .unwrap();
+        let db = store.get_handle("tmptmp").unwrap();
+
+        let db2 = store.get_handle("tmptmp2").unwrap();
+
+        // let db = Arc::new(RwLock::new(db));
+        // let db2 = Arc::new(RwLock::new(db2));
+
+        let producer = thread::spawn({
+            let db = db.clone();
+            move || {
+                println!("p1");
+                for i in 0..1000u64 {
+                    let p = build_node_identity(Default::default()).to_peer();
+                    db.insert(&i, &p).unwrap();
+                }
+                println!("p1");
+            }
+        });
+
+        let consumer = thread::spawn({
+            let db = db.clone();
+            let db2 = db2.clone();
+            move || {
+                println!("cons  ");
+                let mut peers = Vec::new();
+                for i in 0..1000u64 {
+                    peers.push(db.get::<_, Peer>(&i).unwrap());
+                }
+                for i in 1000..2000u64 {
+                    peers.push(db2.get::<_, Peer>(&i).unwrap());
+                }
+                println!("cons  ");
+                peers
+            }
+        });
+        let p2 = thread::spawn({
+            let db = db2.clone();
+            move || {
+                println!("p2");
+                let mut peers = Vec::new();
+                for i in 1000..2000u64 {
+                    let p = build_node_identity(Default::default()).to_peer();
+                    db.insert(&i, &p).unwrap();
+                    peers.push(db.get::<_, Peer>(&i).unwrap());
+                }
+                println!("p2");
+                peers
+            }
+        });
+
+        let peers = consumer.join().unwrap();
+        let peers2 = p2.join().unwrap();
+
+        assert!(peers.iter().all(Option::is_some));
+        assert!(peers2.iter().all(Option::is_some));
+        std::fs::remove_dir_all("/tmp/tmptmp").unwrap();
     }
 }

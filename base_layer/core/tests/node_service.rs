@@ -487,6 +487,7 @@ fn propagate_and_forward_valid_block() {
 
 #[test]
 fn propagate_and_forward_invalid_block() {
+    env_logger::init();
     let mut runtime = Runtime::new().unwrap();
     let temp_dir = TempDir::new(random::string(8).as_str()).unwrap();
     let factories = CryptoFactories::default();
@@ -520,7 +521,7 @@ fn propagate_and_forward_invalid_block() {
         .start(&mut runtime, temp_dir.path().to_str().unwrap());
     let (bob_node, rules) = BaseNodeBuilder::new(network)
         .with_node_identity(bob_node_identity.clone())
-        .with_peers(vec![alice_node_identity.clone(), dan_node_identity.clone()])
+        .with_peers(vec![dan_node_identity.clone()])
         .with_consensus_manager(rules)
         .with_validators(
             mock_validator.clone(),
@@ -530,7 +531,7 @@ fn propagate_and_forward_invalid_block() {
         .start(&mut runtime, temp_dir.path().to_str().unwrap());
     let (carol_node, rules) = BaseNodeBuilder::new(network)
         .with_node_identity(carol_node_identity.clone())
-        .with_peers(vec![alice_node_identity, dan_node_identity.clone()])
+        .with_peers(vec![dan_node_identity.clone()])
         .with_consensus_manager(rules)
         .with_validators(
             mock_validator.clone(),
@@ -540,7 +541,7 @@ fn propagate_and_forward_invalid_block() {
         .start(&mut runtime, temp_dir.path().to_str().unwrap());
     let (dan_node, rules) = BaseNodeBuilder::new(network)
         .with_node_identity(dan_node_identity)
-        .with_peers(vec![bob_node_identity, carol_node_identity])
+        // .with_peers(vec![bob_node_identity, carol_node_identity])
         .with_consensus_manager(rules)
         .start(&mut runtime, temp_dir.path().to_str().unwrap());
 
