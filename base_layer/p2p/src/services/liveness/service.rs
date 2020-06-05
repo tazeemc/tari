@@ -372,7 +372,11 @@ mod test {
         proto::liveness::MetadataKey,
         services::liveness::{handle::LivenessHandle, state::Metadata},
     };
-    use futures::{channel::mpsc, stream, FutureExt};
+    use futures::{
+        channel::{mpsc, oneshot},
+        stream,
+        FutureExt,
+    };
     use rand::rngs::OsRng;
     use std::time::Duration;
     use tari_comms::{
@@ -382,7 +386,7 @@ mod test {
     };
     use tari_comms_dht::{
         envelope::{DhtMessageHeader, DhtMessageType, Network},
-        outbound::{DhtOutboundRequest, SendMessageResponse},
+        outbound::{DhtOutboundRequest, MessageSendState, SendMessageResponse},
         DhtRequest,
     };
     use tari_crypto::keys::PublicKey;
@@ -469,7 +473,12 @@ mod test {
         task::spawn(async move {
             match outbound_rx.select_next_some().await {
                 DhtOutboundRequest::SendMessage(_, _, reply_tx) => {
-                    reply_tx.send(SendMessageResponse::Queued(vec![].into())).unwrap();
+                    let (_, rx) = oneshot::channel();
+                    reply_tx
+                        .send(SendMessageResponse::Queued(
+                            vec![MessageSendState::new(MessageTag::new(), rx)].into(),
+                        ))
+                        .unwrap();
                 },
             }
         });

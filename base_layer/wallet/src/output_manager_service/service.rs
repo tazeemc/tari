@@ -506,44 +506,35 @@ where
                     // Here we are going to spawn a non-blocking task that will monitor and log the progress of the
                     // send process.
                     tokio::spawn(async move {
-                        match send_message_response.resolve_ok().await {
-                            None => trace!(
+                        match send_message_response.resolve().await {
+                            Err(err) => warn!(
                                 target: LOG_TARGET,
-                                "Failed to send Output Manager UTXO Sync query ({}) to Base Node",
-                                request_key
+                                "Failed to send Output Manager UTXO Sync query ({}) to Base Node: {}", request_key, err
                             ),
-                            Some(send_states) => {
-                                if send_states.len() == 1 {
+                            Ok(send_states) => {
+                                trace!(
+                                    target: LOG_TARGET,
+                                    "Output Manager UTXO Sync query ({}) queued for sending with Message {}",
+                                    request_key,
+                                    send_states[0].tag,
+                                );
+                                let message_tag = send_states[0].tag;
+                                if send_states.wait_single().await {
                                     trace!(
                                         target: LOG_TARGET,
-                                        "Output Manager UTXO Sync query ({}) queued for sending with Message {}",
+                                        "Output Manager UTXO Sync query ({}) successfully sent to Base Node with \
+                                         Message {}",
                                         request_key,
-                                        send_states[0].tag,
-                                    );
-                                    let message_tag = send_states[0].tag;
-                                    if send_states.wait_single().await {
-                                        trace!(
-                                            target: LOG_TARGET,
-                                            "Output Manager UTXO Sync query ({}) successfully sent to Base Node with \
-                                             Message {}",
-                                            request_key,
-                                            message_tag,
-                                        )
-                                    } else {
-                                        trace!(
-                                            target: LOG_TARGET,
-                                            "Failed to send Output Manager UTXO Sync query ({}) to Base Node with \
-                                             Message {}",
-                                            request_key,
-                                            message_tag,
-                                        );
-                                    }
+                                        message_tag,
+                                    )
                                 } else {
                                     trace!(
                                         target: LOG_TARGET,
-                                        "Failed to send Output Manager UTXO Sync query ({}) to Base Node",
-                                        request_key
-                                    )
+                                        "Failed to send Output Manager UTXO Sync query ({}) to Base Node with Message \
+                                         {}",
+                                        request_key,
+                                        message_tag,
+                                    );
                                 }
                             },
                         }

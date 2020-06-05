@@ -471,8 +471,8 @@ async fn handle_outbound_request(
         .await
         .map_err(|e| CommsInterfaceError::OutboundMessageService(e.to_string()))?;
 
-    match send_result.resolve_ok().await {
-        Some(send_states) if send_states.is_empty() => {
+    match send_result.resolve().await {
+        Ok(send_states) if send_states.is_empty() => {
             let _ = reply_tx
                 .send(Err(CommsInterfaceError::NoBootstrapNodesConfigured))
                 .or_else(|resp| {
@@ -483,7 +483,7 @@ async fn handle_outbound_request(
                     Err(resp)
                 });
         },
-        Some(_tags) => {
+        Ok(_tags) => {
             // Wait for matching responses to arrive
             waiting_requests
                 .insert(request_key, Some(reply_tx))
@@ -491,7 +491,8 @@ async fn handle_outbound_request(
             // Spawn timeout for waiting_request
             spawn_request_timeout(timeout_sender, request_key, config.request_timeout);
         },
-        None => {
+        Err(err) => {
+            debug!(target: LOG_TARGET, "Failed to send outbound request: {}", err);
             let _ = reply_tx
                 .send(Err(CommsInterfaceError::BroadcastFailed))
                 .or_else(|resp| {
